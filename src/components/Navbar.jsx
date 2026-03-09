@@ -1,11 +1,13 @@
-export default function Navbar({ activePage, onNavigate, isDark, onToggleDark }) {
-    const pages = ['landing', 'dashboard', 'practice', 'analytics', 'chat'];
-    const labels = ['Home', 'Dashboard', 'Practice', 'Progress', 'AI Coach'];
+export default function Navbar({ activePage, onNavigate, isDark, onToggleDark, isLoggedIn, onLogout }) {
+    const pages = isLoggedIn ? ['dashboard', 'practice', 'analytics', 'chat'] : ['landing'];
+    const labels = isLoggedIn ? ['Dashboard', 'Practice', 'Progress', 'AI Coach'] : ['Home'];
 
     return (
         <nav>
             <div className="nav-inner">
-                <div className="logo">Flu<span>ently</span></div>
+                <div className="logo" style={{ cursor: 'pointer' }} onClick={() => onNavigate(isLoggedIn ? 'dashboard' : 'landing')}>
+                    Flu<span>ently</span>
+                </div>
                 <div className="nav-links">
                     {pages.map((page, i) => (
                         <button
@@ -26,8 +28,14 @@ export default function Navbar({ activePage, onNavigate, isDark, onToggleDark })
                     >
                         {isDark ? '🌙' : '☀️'}
                     </button>
-                    <button className="btn-ghost" onClick={() => onNavigate('dashboard')}>Sign In</button>
-                    <button className="btn-primary" onClick={() => onNavigate('practice')}>Start Practice</button>
+                    {!isLoggedIn ? (
+                        <>
+                            <button className="btn-ghost" onClick={() => onNavigate('login')}>Sign In</button>
+                            <button className="btn-primary" onClick={() => onNavigate('login')}>Start Practice</button>
+                        </>
+                    ) : (
+                        <button className="btn-ghost" onClick={onLogout}>Sign Out</button>
+                    )}
                 </div>
             </div>
         </nav>
