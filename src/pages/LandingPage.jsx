@@ -18,10 +18,10 @@ export default function LandingPage({ onNavigate }) {
                         </p>
                         <div className="hero-cta">
                             <button className="btn-hero-primary" onClick={() => onNavigate('login')}>
-                                🎙️ Start Practice
+                                🎙️ Get Started for Free
                             </button>
                             <button className="btn-hero-secondary" onClick={() => onNavigate('login')}>
-                                ✨ Try Demo
+                                ✨ Log In
                             </button>
                         </div>
                         <div className="hero-stats">
@@ -138,8 +138,8 @@ export default function LandingPage({ onNavigate }) {
                     <h2>Ready to find your voice?</h2>
                     <p>Join 50,000+ people who've transformed their speech with Fluently. Free to start, no credit card needed.</p>
                     <div className="cta-btns">
-                        <button className="btn-white" onClick={() => onNavigate('login')}>🎙️ Start Practice Free</button>
-                        <button className="btn-outline-white" onClick={() => onNavigate('login')}>💬 Chat with AI Coach</button>
+                        <button className="btn-white" onClick={() => onNavigate('login')}>🎙️ Get Started for Free</button>
+                        <button className="btn-outline-white" onClick={() => onNavigate('login')}>💬 Log In</button>
                     </div>
                 </div>
             </section>

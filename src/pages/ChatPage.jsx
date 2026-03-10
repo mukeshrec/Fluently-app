@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Ollama Configuration ─────────────────────────────────────────────────────
-const OLLAMA_BASE_URL = 'http://localhost:11434';
-const OLLAMA_MODEL = 'llama3';
+// Point to our new Express/Supabase backend
+const BACKEND_URL = 'http://localhost:3001';
 
 // ─── Stutter-Therapy System Prompt ───────────────────────────────────────────
 const SYSTEM_PROMPT = `You are Aria, a compassionate and expert AI speech-language pathologist specializing in stuttering therapy. You work within the Fluently app.
@@ -60,12 +60,12 @@ async function streamOllamaChat(conversationHistory, onChunk, signal) {
         })),
     ];
 
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal,
         body: JSON.stringify({
-            model: OLLAMA_MODEL,
+            model: 'llama3', // Optionally driven by backend setting
             messages,
             stream: true,
             options: {
@@ -156,6 +156,7 @@ export default function ChatPage() {
     // --- Voice Mode State ---
     const [isVoiceMode, setIsVoiceMode] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
 
     // --- Refs ---
     const messagesRef = useRef(null);
@@ -263,7 +264,9 @@ export default function ChatPage() {
         utterance.pitch = 1.0;
 
         // When TTS finishes reading the final chunk, automatically restart listening if in voice mode
+        utterance.onstart = () => setIsSpeaking(true);
         utterance.onend = () => {
+            setIsSpeaking(false);
             if (isVoiceMode && !synthRef.current.speaking && !isStreaming) {
                 // Wait a tiny bit then restart mic
                 setTimeout(() => {
@@ -281,18 +284,15 @@ export default function ChatPage() {
         synthRef.current.speak(utterance);
     };
 
-    // Check Ollama health on mount
+    // Check Ollama health on mount via Backend
     useEffect(() => {
         const checkHealth = async () => {
             try {
-                const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+                const res = await fetch(`${BACKEND_URL}/health`, {
                     signal: AbortSignal.timeout(4000),
                 });
                 if (res.ok) {
-                    const data = await res.json();
-                    const hasModel = data.models?.some(m => m.name.startsWith(OLLAMA_MODEL));
-                    setConnStatus(hasModel ? 'connected' : 'error');
-                    if (!hasModel) console.warn(`Model "${OLLAMA_MODEL}" not found in Ollama. Run: ollama pull llama3`);
+                    setConnStatus('connected');
                 } else {
                     setConnStatus('error');
                 }
@@ -438,6 +438,7 @@ export default function ChatPage() {
         setIsTyping(false);
         setIsVoiceMode(false);
         setIsListening(false);
+        setIsSpeaking(false);
         setConnStatus(prev => prev); // keep current status
         setInputVal(''); // Clean input field
     };
@@ -487,118 +488,173 @@ export default function ChatPage() {
                             {isVoiceMode ? '⏹️' : '🎙️'}
                         </button>
                     </div>
-
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <div style={{
-                            padding: '7px 14px', borderRadius: '50px',
-                            background: connStatus === 'connected' ? 'var(--mint)' : connStatus === 'error' ? '#FEE2E2' : '#FEF9C3',
-                            fontSize: '0.75rem', fontWeight: 700,
-                            color: connStatus === 'connected' ? 'var(--teal-deep)' : connStatus === 'error' ? '#991B1B' : '#92400E',
-                        }}>
-                            {connStatus === 'connected' ? '● Llama3 Ready' : connStatus === 'error' ? '● Offline' : '● Connecting…'}
-                        </div>
-                        <button
-                            onClick={handleClearChat}
-                            title="Clear chat"
-                            style={{
-                                background: 'var(--sky-mid)', border: 'none', borderRadius: '50%',
-                                width: '34px', height: '34px', cursor: 'pointer',
-                                fontSize: '0.85rem', color: 'var(--text-muted)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}
-                        >
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-
-                {/* Status Banner */}
-                <StatusBanner status={connStatus} />
-
-                {/* Messages */}
-                <div className="chat-messages fade-in-2" ref={messagesRef}>
-                    {messages.map((msg, i) => (
-                        <div
-                            key={i}
-                            className={`msg ${msg.role === 'assistant' ? 'ai' : 'user'}`}
-                            style={i > 0 ? { animation: 'fadeUp 0.3s ease both' } : {}}
-                        >
-                            <div className={`msg-avatar ${msg.role === 'assistant' ? 'msg-av-ai' : 'msg-av-user'}`}>
-                                {msg.role === 'assistant' ? '🤖' : 'A'}
+                    {/* Only show clear chat when not in voice mode */}
+                    {!isVoiceMode && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <div style={{
+                                padding: '7px 14px', borderRadius: '50px',
+                                background: connStatus === 'connected' ? 'var(--mint)' : connStatus === 'error' ? '#FEE2E2' : '#FEF9C3',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                color: connStatus === 'connected' ? 'var(--teal-deep)' : connStatus === 'error' ? '#991B1B' : '#92400E',
+                            }}>
+                                {connStatus === 'connected' ? '● Llama3 Ready' : connStatus === 'error' ? '● Offline' : '● Connecting…'}
                             </div>
-                            <div style={{ maxWidth: '100%' }}>
-                                <div
-                                    className={`msg-bubble${msg.isError ? ' msg-error' : ''}`}
-                                    dangerouslySetInnerHTML={{ __html: renderText(msg.text) }}
-                                />
-                                {/* Streaming cursor */}
-                                {isStreaming && i === messages.length - 1 && msg.role === 'assistant' && (
-                                    <span className="streaming-cursor">▍</span>
-                                )}
-                                <div className="msg-time">{msg.time}</div>
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Typing indicator */}
-                    {isTyping && <TypingIndicator />}
-                </div>
-
-                {/* Quick Suggestions */}
-                {suggestions.length > 0 && (
-                    <div className="suggestion-chips" style={{ flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                        {suggestions.map((s, i) => (
                             <button
-                                key={i}
-                                className="suggestion-chip"
-                                onClick={() => handleSuggestion(s)}
-                                disabled={isStreaming}
+                                onClick={handleClearChat}
+                                title="Clear chat"
+                                style={{
+                                    background: 'var(--sky-mid)', border: 'none', borderRadius: '50%',
+                                    width: '34px', height: '34px', cursor: 'pointer',
+                                    fontSize: '0.85rem', color: 'var(--text-muted)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}
                             >
-                                {s.label}
+                                🗑️
                             </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Input Row */}
-                <div className="chat-input-row">
-                    <input
-                        ref={inputRef}
-                        className="chat-input"
-                        type="text"
-                        placeholder={
-                            isVoiceMode
-                                ? (isListening ? 'Listening (speak now)...' : 'Processing...')
-                                : (isStreaming ? 'Aria is thinking…' : 'Ask Aria anything about your speech journey…')
-                        }
-                        value={inputVal}
-                        onChange={e => setInputVal(e.target.value)}
-                        onKeyDown={handleKey}
-                        disabled={isStreaming || isVoiceMode}
-                        autoComplete="off"
-                    />
-
-                    {isStreaming ? (
-                        <button
-                            className="chat-send-btn"
-                            onClick={handleStop}
-                            title="Stop generating"
-                            style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)' }}
-                        >
-                            ⏹
-                        </button>
-                    ) : (
-                        <button
-                            className="chat-send-btn"
-                            onClick={handleSend}
-                            title="Send message"
-                            disabled={!inputVal.trim()}
-                            style={{ opacity: inputVal.trim() ? 1 : 0.5 }}
-                        >
-                            ➤
-                        </button>
+                        </div>
                     )}
                 </div>
+
+                {!isVoiceMode && (
+                    <>
+                        {/* Status Banner */}
+                        <StatusBanner status={connStatus} />
+
+                        {/* Messages */}
+                        <div className="chat-messages fade-in-2" ref={messagesRef}>
+                            {messages.map((msg, i) => (
+                                <div
+                                    key={i}
+                                    className={`msg ${msg.role === 'assistant' ? 'ai' : 'user'}`}
+                                    style={i > 0 ? { animation: 'fadeUp 0.3s ease both' } : {}}
+                                >
+                                    <div className={`msg-avatar ${msg.role === 'assistant' ? 'msg-av-ai' : 'msg-av-user'}`}>
+                                        {msg.role === 'assistant' ? '🤖' : 'A'}
+                                    </div>
+                                    <div style={{ maxWidth: '100%' }}>
+                                        <div
+                                            className={`msg-bubble${msg.isError ? ' msg-error' : ''}`}
+                                            dangerouslySetInnerHTML={{ __html: renderText(msg.text) }}
+                                        />
+                                        {/* Streaming cursor */}
+                                        {isStreaming && i === messages.length - 1 && msg.role === 'assistant' && (
+                                            <span className="streaming-cursor">▍</span>
+                                        )}
+                                        <div className="msg-time">{msg.time}</div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Typing indicator */}
+                            {isTyping && <TypingIndicator />}
+                        </div>
+
+                        {/* Quick Suggestions */}
+                        {suggestions.length > 0 && (
+                            <div className="suggestion-chips" style={{ flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                                {suggestions.map((s, i) => (
+                                    <button
+                                        key={i}
+                                        className="suggestion-chip"
+                                        onClick={() => handleSuggestion(s)}
+                                        disabled={isStreaming}
+                                    >
+                                        {s.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Input Row */}
+                        <div className="chat-input-row">
+                            <input
+                                ref={inputRef}
+                                className="chat-input"
+                                type="text"
+                                placeholder={isStreaming ? 'Aria is thinking…' : 'Ask Aria anything about your speech journey…'}
+                                value={inputVal}
+                                onChange={e => setInputVal(e.target.value)}
+                                onKeyDown={handleKey}
+                                disabled={isStreaming}
+                                autoComplete="off"
+                            />
+
+                            {isStreaming ? (
+                                <button
+                                    className="chat-send-btn"
+                                    onClick={handleStop}
+                                    title="Stop generating"
+                                    style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)' }}
+                                >
+                                    ⏹
+                                </button>
+                            ) : (
+                                <button
+                                    className="chat-send-btn"
+                                    onClick={handleSend}
+                                    title="Send message"
+                                    disabled={!inputVal.trim()}
+                                    style={{ opacity: inputVal.trim() ? 1 : 0.5 }}
+                                >
+                                    ➤
+                                </button>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {/* ─── Voice Mode Overlay ─── */}
+                <AnimatePresence>
+                    {isVoiceMode && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            style={{
+                                flex: 1, display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center',
+                                padding: '40px 20px', gap: '40px'
+                            }}
+                        >
+                            <motion.div
+                                animate={
+                                    isListening ? { scale: [1, 1.2, 1], boxShadow: ['0 0 0 0 rgba(239, 68, 68, 0.4)', '0 0 0 20px rgba(239, 68, 68, 0)', '0 0 0 0 rgba(239, 68, 68, 0)'] }
+                                        : isSpeaking ? { scale: [1, 1.05, 1], boxShadow: ['0 0 0 0 rgba(16, 185, 129, 0.4)', '0 0 0 15px rgba(16, 185, 129, 0)', '0 0 0 0 rgba(16, 185, 129, 0)'] }
+                                            : { scale: 1 }
+                                }
+                                transition={{ repeat: Infinity, duration: isListening ? 1.5 : 2 }}
+                                style={{
+                                    width: '120px', height: '120px', borderRadius: '50%',
+                                    background: isSpeaking ? 'var(--mint)' : isListening ? '#ef4444' : 'var(--card-bg)',
+                                    color: isSpeaking ? 'var(--teal-deep)' : isListening ? 'white' : 'var(--text-muted)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '3rem', cursor: 'pointer',
+                                    border: isListening || isSpeaking ? 'none' : '2px solid var(--border-color)'
+                                }}
+                                onClick={toggleVoiceMode}
+                            >
+                                {isSpeaking ? '🤖' : '🎙️'}
+                            </motion.div>
+
+                            <div style={{ textAlign: 'center' }}>
+                                <h2 style={{ fontSize: '1.5rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
+                                    {isSpeaking ? 'Aria is speaking...'
+                                        : isListening ? 'Listening...'
+                                            : isStreaming ? 'Aria is thinking...'
+                                                : 'Voice Mode Active'}
+                                </h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '300px', margin: '0 auto' }}>
+                                    {inputVal && isListening ? `"${inputVal}"` : 'Conversation is private. Text hidden for focus.'}
+                                </p>
+                            </div>
+
+                            {/* Stop active generation if needed */}
+                            {isStreaming && !isSpeaking && (
+                                <button className="btn-ghost" style={{ color: '#ef4444' }} onClick={handleStop}>Stop Generating</button>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Model info footer */}
                 <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>

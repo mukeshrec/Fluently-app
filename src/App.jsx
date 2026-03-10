@@ -1,29 +1,57 @@
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from './supabaseClient';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
-import PracticePage from './pages/PracticePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ChatPage from './pages/ChatPage';
 import AssessmentPage from './pages/AssessmentPage';
 import LoginPage from './pages/LoginPage';
 
 export default function App() {
-    const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('fluently_logged_in') === 'true');
+    const [session, setSession] = useState(null);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    // We still use localStorage as a cache for the profile to avoid flickering, 
+    // but the source of truth for auth is the Supabase session
     const [onboardingComplete, setOnboardingComplete] = useState(() => localStorage.getItem('fluently_onboarding') === 'true');
     const [userProfile, setUserProfile] = useState(() => {
         const saved = localStorage.getItem('fluently_profile');
         return saved ? JSON.parse(saved) : null;
     });
 
-    const [activePage, setActivePage] = useState(() => {
-        if (localStorage.getItem('fluently_logged_in') === 'true') {
-            return localStorage.getItem('fluently_onboarding') === 'true' ? 'dashboard' : 'assessment';
-        }
-        return 'landing';
-    });
-
+    const [activePage, setActivePage] = useState('landing');
     const [isDark, setIsDark] = useState(false);
+
+    // Watch for Supabase Auth changes
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setIsLoggedIn(!!session);
+            if (session) {
+                setActivePage(onboardingComplete ? 'dashboard' : 'assessment');
+            } else {
+                setActivePage('landing');
+            }
+        });
+
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            setIsLoggedIn(!!session);
+            if (!session) {
+                // Keep local storage cleared on sign out
+                localStorage.removeItem('fluently_onboarding');
+                localStorage.removeItem('fluently_profile');
+                setOnboardingComplete(false);
+                setUserProfile(null);
+                setActivePage('landing');
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [onboardingComplete]);
 
     // Apply dark class to body
     useEffect(() => {
@@ -72,8 +100,6 @@ export default function App() {
         switch (activePage) {
             case 'dashboard':
                 return <DashboardPage userProfile={userProfile} onNavigate={handleNavigate} />;
-            case 'practice':
-                return <PracticePage />;
             case 'analytics':
                 return <AnalyticsPage />;
             case 'chat':
@@ -81,13 +107,30 @@ export default function App() {
             case 'assessment':
                 return (
                     <AssessmentPage
-                        onComplete={(profile) => {
+                        onComplete={async (profile) => {
+                            // 1. Cache locally for instant UI update
                             localStorage.setItem('fluently_profile', JSON.stringify(profile));
                             localStorage.setItem('fluently_onboarding', 'true');
                             setUserProfile(profile);
                             setOnboardingComplete(true);
                             setActivePage("dashboard");
                             window.scrollTo(0, 0);
+
+                            // 2. Persist to DB via backend if logged in
+                            if (session?.user?.id) {
+                                try {
+                                    await fetch('http://localhost:3001/api/profile', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            user_id: session.user.id,
+                                            assessment_data: profile
+                                        })
+                                    });
+                                } catch (e) {
+                                    console.error("Failed to save profile to DB", e);
+                                }
+                            }
                         }}
                     />
                 );
@@ -97,9 +140,9 @@ export default function App() {
                         {/* Hide navbar on login page */}
                         <style>{`nav { display: none; }`}</style>
                         <LoginPage
-                            onLogin={() => {
-                                localStorage.setItem('fluently_logged_in', 'true');
-                                setIsLoggedIn(true);
+                            onLogin={(user) => {
+                                // Real Auth is handled by the useEffect observer above, 
+                                // so we just navigate based on the assumed onboarding state.
                                 setActivePage(onboardingComplete ? 'dashboard' : 'assessment');
                                 window.scrollTo(0, 0);
                             }}
@@ -121,14 +164,9 @@ export default function App() {
                 isDark={isDark}
                 onToggleDark={() => setIsDark(prev => !prev)}
                 isLoggedIn={isLoggedIn}
-                onLogout={() => {
-                    localStorage.removeItem('fluently_logged_in');
-                    localStorage.removeItem('fluently_onboarding');
-                    localStorage.removeItem('fluently_profile');
-                    setIsLoggedIn(false);
-                    setOnboardingComplete(false);
-                    setUserProfile(null);
-                    setActivePage('landing');
+                onLogout={async () => {
+                    await supabase.auth.signOut();
+                    // Local state cleanup handled by the auth state change listener automatically
                 }}
             />
             <div className="page active">

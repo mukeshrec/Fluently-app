@@ -7,25 +7,12 @@ export default function DashboardPage({ userProfile, onNavigate }) {
                     <button className="sidebar-item active" onClick={() => onNavigate('dashboard')}>
                         <span className="sidebar-icon">🏠</span> Dashboard
                     </button>
-                    <button className="sidebar-item" onClick={() => onNavigate('practice')}>
-                        <span className="sidebar-icon">🎙️</span> Practice
-                    </button>
                     <button className="sidebar-item" onClick={() => onNavigate('analytics')}>
                         <span className="sidebar-icon">📈</span> Progress
                     </button>
                     <button className="sidebar-item" onClick={() => onNavigate('chat')}>
                         <span className="sidebar-icon">🤖</span> AI Coach
                     </button>
-                </div>
-                <div className="sidebar-section">
-                    <div className="sidebar-label">Library</div>
-                    <button className="sidebar-item"><span className="sidebar-icon">📚</span> Exercises</button>
-                    <button className="sidebar-item"><span className="sidebar-icon">🎯</span> Goals</button>
-                    <button className="sidebar-item"><span className="sidebar-icon">🏆</span> Achievements</button>
-                </div>
-                <div className="sidebar-section">
-                    <div className="sidebar-label">Account</div>
-                    <button className="sidebar-item"><span className="sidebar-icon">⚙️</span> Settings</button>
                 </div>
                 <div className="streak-card">
                     <div className="streak-fire">🔥</div>
@@ -75,7 +62,7 @@ export default function DashboardPage({ userProfile, onNavigate }) {
                                     <div key={idx} className={`path-node ${isUnlocked ? 'unlocked' : 'locked'}`} style={{ position: 'relative', zIndex: 1, transform: `translateX(${offset})`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                         <button
                                             className="node-circle"
-                                            onClick={() => { if (isUnlocked) onNavigate('practice'); }}
+                                            onClick={() => { if (isUnlocked) onNavigate('chat'); }}
                                             style={{
                                                 width: '85px', height: '85px', borderRadius: '50%', border: 'none',
                                                 background: isUnlocked ? 'var(--teal)' : '#e2e8f0',
@@ -145,7 +132,7 @@ export default function DashboardPage({ userProfile, onNavigate }) {
 
                         {/* Quick Actions */}
                         <div className="quick-actions fade-in-3">
-                            <div className="quick-btn" onClick={() => onNavigate('practice')}>
+                            <div className="quick-btn" onClick={() => onNavigate('chat')}>
                                 <div className="quick-btn-icon">🎙️</div>
                                 <div className="quick-btn-label">Start Practice</div>
                             </div>

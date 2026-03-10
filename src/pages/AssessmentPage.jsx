@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 
-// Using the same Llama3 backend URL you use for ChatPage
-const OLLAMA_BASE_URL = 'http://localhost:11434';
-const OLLAMA_MODEL = 'llama3';
+// Point to our new Express/Supabase backend
+const BACKEND_URL = 'http://localhost:3001';
 
 const READING_PASSAGE = `"When the sunlight strikes raindrops in the air, they act as a prism and form a rainbow. The rainbow is a division of white light into many beautiful colors. These take the shape of a long round arch, with its path high above, and its two ends apparently beyond the horizon."`;
 
@@ -98,15 +97,11 @@ export default function AssessmentPage({ onComplete }) {
         setError('');
 
         try {
-            const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+            const response = await fetch(`${BACKEND_URL}/api/assessment`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: OLLAMA_MODEL,
-                    prompt: `User Transcript:\n"${transcript}"\n\nOriginal Passage:\n${READING_PASSAGE}`,
-                    system: SYSTEM_PROMPT,
-                    stream: false,
-                    format: 'json' // Request JSON output format from Ollama (works well in llama3)
+                    prompt: `User Transcript:\n"${transcript}"\n\nOriginal Passage:\n${READING_PASSAGE}\n\n${SYSTEM_PROMPT}`,
                 }),
             });
 

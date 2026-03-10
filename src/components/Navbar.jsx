@@ -1,6 +1,6 @@
 export default function Navbar({ activePage, onNavigate, isDark, onToggleDark, isLoggedIn, onLogout }) {
-    const pages = isLoggedIn ? ['dashboard', 'practice', 'analytics', 'chat'] : ['landing'];
-    const labels = isLoggedIn ? ['Dashboard', 'Practice', 'Progress', 'AI Coach'] : ['Home'];
+    const pages = isLoggedIn ? ['dashboard', 'analytics', 'chat'] : ['landing'];
+    const labels = isLoggedIn ? ['Dashboard', 'Progress', 'AI Coach'] : ['Home'];
 
     return (
         <nav>
@@ -31,7 +31,7 @@ export default function Navbar({ activePage, onNavigate, isDark, onToggleDark, i
                     {!isLoggedIn ? (
                         <>
                             <button className="btn-ghost" onClick={() => onNavigate('login')}>Sign In</button>
-                            <button className="btn-primary" onClick={() => onNavigate('login')}>Start Practice</button>
+                            <button className="btn-primary" onClick={() => onNavigate('login')}>Get Started</button>
                         </>
                     ) : (
                         <button className="btn-ghost" onClick={onLogout}>Sign Out</button>
